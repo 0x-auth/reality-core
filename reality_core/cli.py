@@ -3,6 +3,8 @@ reality — a terminal game and verifier built on reality_core.
 
     reality play [--law mobius|linear] [--seed N]   guess the law's sector in exactly 4 looks
     reality verify <transcript>                     check a transcript against its claimed law
+    reality state <t>                               the state z = t + i/t of one cause, e.g. 2 or 0.6+0.8j
+    reality check <source> <note>                   look every claim of a note back up in its source
 """
 
 import argparse
@@ -10,7 +12,10 @@ import json
 import random
 import sys
 
-from . import LAWS, Reading
+import cmath
+import math
+
+from . import LAWS, Reading, State, TextField, textcheck
 
 SECTOR_HINT = {
     "hyperbolic": "settled — it closes, it has an arrow",
@@ -145,6 +150,46 @@ def cmd_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _c(x: complex) -> str:
+    x = complex(x)
+    if math.isfinite(abs(x)):
+        tiny = 1e-12 * max(1.0, abs(x))
+        x = complex(0.0 if abs(x.real) < tiny else x.real, 0.0 if abs(x.imag) < tiny else x.imag)
+    if abs(x.imag) < 1e-12:
+        return f"{x.real:.6g}"
+    return f"{x.real:.6g} {'+' if x.imag >= 0 else '-'} {abs(x.imag):.6g}i"
+
+
+def cmd_state(args: argparse.Namespace) -> int:
+    s = State(complex(args.t.replace(" ", "").replace("i", "j")))
+    print(f"  t       {_c(s.t)}")
+    print(f"  z       {_c(s.z)}        z' {_c(s.z_mirror)}")
+    print(f"  dt      {_c(s.dt)}        dx {_c(s.dx)}")
+    print(f"  speed   {_c(s.speed)}  ({'observable' if s.observable() else 'unobservable'} from here)")
+    print(f"  clock   u = {s.u:.6g}, turn = {math.degrees(s.turn):.4g} deg")
+    print(f"  rule    S -> dx + 1/S is {s.sector()} ({s.fate()}); error x {_c(s.multiplier)} per step")
+    print("  sides")
+    for name, o in s.sides().items():
+        print(f"    {name:11s} t = {_c(o.t):24s} speed {_c(o.speed):22s} {'observable' if o.observable() else 'unobservable'}")
+    return 0
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    with open(args.source, encoding="utf-8") as f:
+        source = f.read()
+    with open(args.note, encoding="utf-8") as f:
+        note = f.read()
+    claims = TextField.claims(source, note)
+    flagged = [c for c in claims if c["residual"] >= textcheck.LINE]
+    for c in claims:
+        mark = "CHECK" if c["residual"] >= textcheck.LINE else "  ok "
+        extra = f"   | not found: {', '.join(c['missing'])}" if c["missing"] and mark == "CHECK" else ""
+        neg = "   | negation differs" if c["neg_diff"] else ""
+        print(f"  {c['residual']:.2f} {mark} {c['text'][:90]}{extra}{neg}")
+    print(f"\n  {len(claims)} claims, {len(flagged)} to check by hand (line {textcheck.LINE})")
+    return 1 if flagged else 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="reality", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -160,6 +205,15 @@ def main(argv=None) -> int:
     p_verify = sub.add_parser("verify", help="check a saved transcript")
     p_verify.add_argument("transcript", help="path to a transcript JSON file")
     p_verify.set_defaults(func=cmd_verify)
+
+    p_state = sub.add_parser("state", help="the state z = t + i/t of one cause")
+    p_state.add_argument("t", help="a real or complex number, e.g. 2, -0.5, 0.6+0.8j")
+    p_state.set_defaults(func=cmd_state)
+
+    p_check = sub.add_parser("check", help="look every claim of a note back up in its source")
+    p_check.add_argument("source", help="the original text")
+    p_check.add_argument("note", help="the summary, memory or answer to check")
+    p_check.set_defaults(func=cmd_check)
 
     args = parser.parse_args(argv)
     return args.func(args)
