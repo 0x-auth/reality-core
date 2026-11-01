@@ -19,16 +19,29 @@ Each takes exactly 4 readings to pin down — fewer and more than one sector
 is still consistent with what's been seen. See
 https://github.com/0x-auth/darmiyan-fs (instants.py) and
 https://github.com/0x-auth/self-referential-seed.
+
+The mirror layer (state.py, mirror.py, fields.py) puts any field on the
+same footing: a forward step, its mirror and a measured miss, turned into
+one State z = t + i/t per output. The rebuilding rule of that state is
+itself a Law here: Law(dx, 1, 1, 0), whose Delta is dt^2.
 """
 
 from .interface import LawType, Recognizer
 from .reading import Reading
 from .mobius import Law, MobiusRecognizer, mirror_C, mirror_R, random_law, v_delta, v_local
 from .linear import LinearLaw, LinearRecognizer
+from .state import State, SIDE_NAMES
+from .mirror import Field, CallableField, Mirror, Check, Routed, best_line
+from .fields import ExactField, MemoryField, LawField, TextField
+from . import textcheck
 
 LAWS = {"mobius": MobiusRecognizer(), "linear": LinearRecognizer()}
 
 __all__ = [
     "LAWS", "Law", "LawType", "LinearLaw", "LinearRecognizer", "MobiusRecognizer",
     "Reading", "Recognizer", "mirror_C", "mirror_R", "random_law", "v_delta", "v_local",
+    "State", "SIDE_NAMES", "Field", "CallableField", "Mirror", "Check", "Routed", "best_line",
+    "ExactField", "MemoryField", "LawField", "TextField", "FIELDS", "textcheck",
 ]
+
+FIELDS = {"exact": ExactField, "memory": MemoryField, "law": LawField, "text": TextField}
